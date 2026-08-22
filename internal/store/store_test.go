@@ -79,6 +79,58 @@ func TestListCountSearch(t *testing.T) {
 	}
 }
 
+func TestSearchLiteralWildcards(t *testing.T) {
+	s := tempStore(t)
+	links := []struct {
+		code, target, desc string
+	}{
+		{"c1", "https://x.com/a%20b", "discount 50%"},
+		{"c2", "https://y.com/under_score", "plain"},
+		{"c3", "https://x.com/a%20b/extra", "backslash \\ here"},
+	}
+	for _, l := range links {
+		if _, err := s.InsertLink(context.Background(), Link{Code: l.code, TargetURL: l.target, Description: l.desc}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// 用户输入 % 必须按字面匹配，而非通配。
+	got, err := s.SearchLinks(context.Background(), "%20", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("literal %%: got %d, want 2", len(got))
+	}
+
+	// 用户输入 _ 必须按字面匹配。
+	got, err = s.SearchLinks(context.Background(), "under_score", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Code != "c2" {
+		t.Fatalf("literal _: got %+v, want c2", got)
+	}
+
+	// 用户输入 \ 必须按字面匹配。
+	got, err = s.SearchLinks(context.Background(), "backslash \\ here", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Code != "c3" {
+		t.Fatalf("literal \\: got %+v, want c3", got)
+	}
+
+	// 整体仍为包含匹配：查询 c1 的子串也命中。
+	got, err = s.SearchLinks(context.Background(), "discount", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Code != "c1" {
+		t.Fatalf("substring: got %+v, want c1", got)
+	}
+}
+
 func TestClicksDailySingleDay(t *testing.T) {
 	s := tempStore(t)
 	if _, err := s.InsertLink(context.Background(), Link{Code: "c1", TargetURL: "https://x.com"}); err != nil {

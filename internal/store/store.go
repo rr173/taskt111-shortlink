@@ -208,10 +208,24 @@ func (s *Store) CountLinks(ctx context.Context, owner string) (int, error) {
 	return n, nil
 }
 
+// escapeLike 转义 SQLite LIKE 模式中的通配符（%、_、\），使传入字符串按字面匹配。
+// 配合 SQL 中的 ESCAPE '\' 使用：反斜杠本身也要先转义，否则会吞掉紧随其后的字符。
+func escapeLike(s string) string {
+	r := make([]byte, 0, len(s))
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '\\', '%', '_':
+			r = append(r, '\\')
+		}
+		r = append(r, s[i])
+	}
+	return string(r)
+}
+
 // SearchLinks 按 target_url 或 description 模糊匹配。
+// 用户输入按字面匹配：q 中的 %、_、\ 不会作为通配符解释。
 func (s *Store) SearchLinks(ctx context.Context, q string, limit int) ([]Link, error) {
-	escaped := q
-	like := "%" + escaped + "%"
+	like := "%" + escapeLike(q) + "%"
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, code, target_url, owner, description, created_at, expires_at, max_clicks, custom_alias
 		 FROM links WHERE target_url LIKE ? ESCAPE '\' OR description LIKE ? ESCAPE '\' ORDER BY id DESC LIMIT ?`,

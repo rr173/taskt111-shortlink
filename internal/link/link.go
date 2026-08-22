@@ -206,11 +206,12 @@ func (s *Service) List(ctx context.Context, owner string, limit, offset int) ([]
 }
 
 // Search 模糊搜索链接。
+// q 原样透传给存储层，由其统一转义并包裹通配符，确保用户输入按字面匹配。
 func (s *Service) Search(ctx context.Context, q string, limit int) ([]store.Link, error) {
 	if limit <= 0 {
 		limit = 20
 	}
-	return s.store.SearchLinks(ctx, q+"%", limit)
+	return s.store.SearchLinks(ctx, q, limit)
 }
 
 func validURL(raw string) error {

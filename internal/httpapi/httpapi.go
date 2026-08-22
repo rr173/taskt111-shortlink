@@ -177,7 +177,7 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
-	q := "%" + r.URL.Query().Get("q") + "%"
+	q := r.URL.Query().Get("q")
 	limit := atoiDefault(r.URL.Query().Get("limit"), 20)
 	links, err := h.link.Search(r.Context(), q, limit)
 	if err != nil {
