@@ -187,6 +187,25 @@ func (s *Service) Update(ctx context.Context, code, targetURL, description strin
 	return s.store.UpdateLink(ctx, code, targetURL, description, expiresAt, maxClicks)
 }
 
+// Expire 手动令短链失效：只把 expires_at 置为过去的时间戳以改变可用状态，
+// 目标地址与描述等原始内容保持不变，后续查询仍可恢复。
+func (s *Service) Expire(ctx context.Context, code string) error {
+	l, err := s.store.GetLinkByCode(ctx, code)
+	if err != nil {
+		return err
+	}
+	if l.Code == "" {
+		return ErrNotFound
+	}
+	now := time.Now().UnixMilli()
+	// 若已过期，沿用原过期时间，避免无谓写入。
+	exp := l.ExpiresAt
+	if exp == 0 || exp > now {
+		exp = now
+	}
+	return s.store.ExpireLink(ctx, code, exp)
+}
+
 // Delete 删除链接及其点击记录。
 func (s *Service) Delete(ctx context.Context, code string) error {
 	l, err := s.store.GetLinkByCode(ctx, code)

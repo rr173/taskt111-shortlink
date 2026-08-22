@@ -287,16 +287,7 @@ func (h *Handler) reset(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) expire(w http.ResponseWriter, r *http.Request) {
 	code := r.PathValue("code")
-	l, err := h.store.GetLinkByCode(r.Context(), code)
-	if err != nil {
-		h.writeError(w, err)
-		return
-	}
-	if l.Code == "" {
-		h.writeError(w, link.ErrNotFound)
-		return
-	}
-	if err := h.link.Update(r.Context(), code, "", "", time.Now().UnixMilli(), 0); err != nil {
+	if err := h.link.Expire(r.Context(), code); err != nil {
 		h.writeError(w, err)
 		return
 	}
