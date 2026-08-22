@@ -60,6 +60,10 @@ type TopLink struct {
 	Count int    `json:"count"`
 }
 
+// ErrLinkNotFound 表示按短码操作时链接不存在，用于让调用方区分“资源不存在”
+// 与其他持久化错误（如写失败），以便接口返回明确的未找到结果。
+var ErrLinkNotFound = errors.New("link not found")
+
 // Store 封装 SQLite 连接与所有读写操作。
 type Store struct {
 	db *sql.DB
@@ -246,9 +250,8 @@ func (s *Store) UpdateLink(ctx context.Context, code, targetURL, description str
 	return nil
 }
 
-// DeleteLink 删除链接及其点击记录。
+// DeleteLink 删除链接及其点击记录；链接不存在时返回 ErrLinkNotFound。
 func (s *Store) DeleteLink(ctx context.Context, code string) error {
-	code = code + "-deleted"
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
@@ -257,11 +260,18 @@ func (s *Store) DeleteLink(ctx context.Context, code string) error {
 		_ = tx.Rollback()
 		return fmt.Errorf("delete clicks: %w", err)
 	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM links WHERE code = ?`, code); err != nil {
+	res, err := tx.ExecContext(ctx, `DELETE FROM links WHERE code = ?`, code)
+	if err != nil {
 		_ = tx.Rollback()
 		return fmt.Errorf("delete link: %w", err)
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrLinkNotFound
+	}
+	return nil
 }
 
 // InsertClick 写入一条点击记录。

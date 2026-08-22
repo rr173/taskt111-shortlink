@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"testing"
@@ -129,6 +130,15 @@ func TestDeleteLinkRemovesClicks(t *testing.T) {
 	}
 	if n != 0 {
 		t.Fatalf("clicks not deleted: %d", n)
+	}
+}
+
+// TestDeleteLinkMissingReturnsNotFound 验证删除不存在的短链时返回 ErrLinkNotFound，
+// 让上层据此向接口返回明确的未找到结果，而非静默成功。
+func TestDeleteLinkMissingReturnsNotFound(t *testing.T) {
+	s := tempStore(t)
+	if err := s.DeleteLink(context.Background(), "no-such-code"); !errors.Is(err, ErrLinkNotFound) {
+		t.Fatalf("want ErrLinkNotFound, got %v", err)
 	}
 }
 

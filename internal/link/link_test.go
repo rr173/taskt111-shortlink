@@ -81,6 +81,15 @@ func TestUpdateDelete(t *testing.T) {
 	}
 }
 
+// TestDeleteMissingReturnsNotFound 验证删除不存在的短链时领域层返回 ErrNotFound，
+// 而非静默成功，使调用方能区分“资源不存在”与删除成功。
+func TestDeleteMissingReturnsNotFound(t *testing.T) {
+	svc := newSvc(t)
+	if err := svc.Delete(context.Background(), "missing"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("want ErrNotFound, got %v", err)
+	}
+}
+
 func TestStatusNoLimit(t *testing.T) {
 	svc := newSvc(t)
 	l, err := svc.Create(context.Background(), CreateReq{TargetURL: "https://x.com"})

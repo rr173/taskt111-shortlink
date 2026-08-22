@@ -90,3 +90,60 @@ func TestListLargeLimit(t *testing.T) {
 		t.Fatal("has_more should be false when limit exceeds total")
 	}
 }
+
+// TestDeleteMissingReturnsNotFound 验证删除不存在的短链时返回 404 而非 200，
+// 调用方可据此判断删除目标是否真实存在。
+func TestDeleteMissingReturnsNotFound(t *testing.T) {
+	h := newServer(t)
+	req := httptest.NewRequest(http.MethodDelete, "/api/links/no-such-code", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("delete missing code = %d, want 404", rec.Code)
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp["error"] == "" {
+		t.Fatalf("expected non-empty error body, got %s", rec.Body.String())
+	}
+}
+
+// TestDeleteExistingSucceeds 验证删除已存在的短链返回 200 deleted:true，
+// 并使后续 GET 跳转返回 404。
+func TestDeleteExistingSucceeds(t *testing.T) {
+	h := newServer(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/links", strings.NewReader(`{"target_url":"https://x.com"}`))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create code = %d", rec.Code)
+	}
+	var l store.Link
+	if err := json.Unmarshal(rec.Body.Bytes(), &l); err != nil {
+		t.Fatal(err)
+	}
+
+	dreq := httptest.NewRequest(http.MethodDelete, "/api/links/"+l.Code, nil)
+	drec := httptest.NewRecorder()
+	h.ServeHTTP(drec, dreq)
+	if drec.Code != http.StatusOK {
+		t.Fatalf("delete code = %d, want 200", drec.Code)
+	}
+	var dresp map[string]any
+	if err := json.Unmarshal(drec.Body.Bytes(), &dresp); err != nil {
+		t.Fatal(err)
+	}
+	if dresp["deleted"] != true {
+		t.Fatalf("deleted = %v, want true", dresp["deleted"])
+	}
+
+	// 删除后再次删除应返回未找到，而非再次成功。
+	again := httptest.NewRequest(http.MethodDelete, "/api/links/"+l.Code, nil)
+	arec := httptest.NewRecorder()
+	h.ServeHTTP(arec, again)
+	if arec.Code != http.StatusNotFound {
+		t.Fatalf("re-delete code = %d, want 404", arec.Code)
+	}
+}

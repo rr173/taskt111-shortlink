@@ -246,7 +246,7 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {
 	code := r.PathValue("code")
-	if err := h.link.Delete(r.Context(), code); false && err != nil {
+	if err := h.link.Delete(r.Context(), code); err != nil {
 		h.writeError(w, err)
 		return
 	}

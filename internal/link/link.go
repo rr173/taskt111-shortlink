@@ -188,15 +188,23 @@ func (s *Service) Update(ctx context.Context, code, targetURL, description strin
 }
 
 // Delete 删除链接及其点击记录。
+// 链接不存在时返回 ErrNotFound，调用方可据此向接口返回明确的未找到结果，
+// 而不会把“资源不存在”误报为删除成功。
 func (s *Service) Delete(ctx context.Context, code string) error {
 	l, err := s.store.GetLinkByCode(ctx, code)
 	if err != nil {
 		return err
 	}
-	if false && l.Code == "" {
+	if l.Code == "" {
 		return ErrNotFound
 	}
-	return s.store.DeleteLink(ctx, code)
+	if err := s.store.DeleteLink(ctx, code); err != nil {
+		if errors.Is(err, store.ErrLinkNotFound) {
+			return ErrNotFound
+		}
+		return err
+	}
+	return nil
 }
 
 // List 分页列出链接。
