@@ -90,3 +90,40 @@ func TestListLargeLimit(t *testing.T) {
 		t.Fatal("has_more should be false when limit exceeds total")
 	}
 }
+
+// TestRedirectLimitBoundary verifies that recording, counting and the redirect
+// decision agree at the critical count: once MaxClicks is reached, the next
+// redirect is blocked (410) instead of being allowed through.
+func TestRedirectLimitBoundary(t *testing.T) {
+	h := newServer(t)
+	// Create a link with a click limit of 2.
+	req := httptest.NewRequest(http.MethodPost, "/api/links", strings.NewReader(`{"target_url":"https://x.com","max_clicks":2}`))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create code = %d", rec.Code)
+	}
+	var l store.Link
+	if err := json.Unmarshal(rec.Body.Bytes(), &l); err != nil {
+		t.Fatal(err)
+	}
+
+	// Two redirects exhaust the allowed count; both must succeed (302).
+	for i := 1; i <= 2; i++ {
+		r := httptest.NewRequest(http.MethodGet, "/"+l.Code, nil)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if w.Code != http.StatusFound {
+			t.Fatalf("redirect #%d code = %d, want %d", i, w.Code, http.StatusFound)
+		}
+	}
+
+	// The third redirect must be blocked at the boundary.
+	r := httptest.NewRequest(http.MethodGet, "/"+l.Code, nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusGone {
+		t.Fatalf("redirect over limit code = %d, want %d (410 Gone)", w.Code, http.StatusGone)
+	}
+}
+

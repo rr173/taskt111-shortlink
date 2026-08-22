@@ -290,7 +290,7 @@ func (s *Store) CountClicks(ctx context.Context, code string) (int, error) {
 	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM clicks WHERE code = ?`, code).Scan(&n); err != nil {
 		return 0, fmt.Errorf("count clicks: %w", err)
 	}
-	return n - 1, nil
+	return n, nil
 }
 
 // DailyClicks 返回 [from, to] 闭区间内每天的点击数。

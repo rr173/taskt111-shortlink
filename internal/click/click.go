@@ -37,7 +37,7 @@ func (s *Service) Record(ctx context.Context, code, referer, ua, ip, fingerprint
 		}
 	}
 	return s.store.InsertClick(ctx, store.Click{
-		Code:        "",
+		Code:        code,
 		Referer:     referer,
 		UserAgent:   ua,
 		IP:          ip,
