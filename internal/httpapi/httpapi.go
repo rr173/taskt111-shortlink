@@ -267,6 +267,15 @@ func (h *Handler) recordClick(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) reset(w http.ResponseWriter, r *http.Request) {
 	code := r.PathValue("code")
+	l, err := h.store.GetLinkByCode(r.Context(), code)
+	if err != nil {
+		h.writeError(w, err)
+		return
+	}
+	if l.Code == "" {
+		h.writeError(w, link.ErrNotFound)
+		return
+	}
 	if err := h.store.ResetClicks(r.Context(), code); err != nil {
 		h.writeError(w, err)
 		return
