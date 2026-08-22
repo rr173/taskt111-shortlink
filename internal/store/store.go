@@ -153,6 +153,42 @@ func (s *Store) InsertLink(ctx context.Context, l Link) (Link, error) {
 	return l, nil
 }
 
+// InsertLinks 在单个事务内写入多条短链。任一短码违反唯一约束（或任意写入出错）
+// 即回滚整批，保证调用方拿到的要么是全部成功写入、要么是没有任何写入——不会留下
+// 前半批已落库的数据。与 InsertLink 不同，这里用 INSERT 而非 INSERT OR IGNORE，
+// 让唯一约束冲突以错误形式中止事务，而不是被静默吞掉。
+func (s *Store) InsertLinks(ctx context.Context, links []Link) ([]Link, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin tx: %w", err)
+	}
+	out := make([]Link, 0, len(links))
+	for _, l := range links {
+		if l.CreatedAt == 0 {
+			l.CreatedAt = time.Now().UnixMilli()
+		}
+		res, err := tx.ExecContext(ctx,
+			`INSERT INTO links (code, target_url, owner, description, created_at, expires_at, max_clicks, custom_alias)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			l.Code, l.TargetURL, l.Owner, l.Description, l.CreatedAt, l.ExpiresAt, l.MaxClicks, boolToInt(l.CustomAlias))
+		if err != nil {
+			_ = tx.Rollback()
+			return nil, fmt.Errorf("insert link %q: %w", l.Code, err)
+		}
+		id, err := res.LastInsertId()
+		if err != nil {
+			_ = tx.Rollback()
+			return nil, fmt.Errorf("last insert id: %w", err)
+		}
+		l.ID = id
+		out = append(out, l)
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit bulk links: %w", err)
+	}
+	return out, nil
+}
+
 // GetLinkByCode 按短码读取链接；不存在时返回 (Link{}, nil)。
 func (s *Store) GetLinkByCode(ctx context.Context, code string) (Link, error) {
 	row := s.db.QueryRowContext(ctx,

@@ -86,20 +86,67 @@ func (s *Service) Create(ctx context.Context, req CreateReq) (store.Link, error)
 	return l, nil
 }
 
-// BulkCreate 批量创建短链。任一子项失败则立即返回错误。
+// BulkCreate 批量创建短链。整批在单个事务内落库：任一子项失败（包括唯一约束
+// 冲突）都会回滚全部已写入项，保证失败时数据保持完整——不会留下前半批已落库
+// 的数据。唯一性在两个层面校验：先在内存中检查整批内部的短码重复，再按需读取
+// 数据库确认短码未被占用，最后由事务的 INSERT 唯一约束兜底。
 func (s *Service) BulkCreate(ctx context.Context, reqs []CreateReq) ([]store.Link, error) {
 	if _, err := PlanBatch(reqs); err != nil {
 		return nil, err
 	}
-	out := make([]store.Link, 0, len(reqs))
+	rows := make([]store.Link, 0, len(reqs))
+	seen := make(map[string]bool, len(reqs))
 	for _, r := range reqs {
-		l, err := s.Create(ctx, r)
-		if err != nil {
-			return nil, err
+		req := r
+		req.Owner = NormalizeOwner(req.Owner)
+		code := idgen.CanonicalCode(req.CustomCode)
+		if code == "" {
+			c, err := idgen.UniqueCode(6, 8, func(c string) bool {
+				// 先看本批内是否已分配同一短码，再查数据库。
+				if seen[c] {
+					return true
+				}
+				l, e := s.store.GetLinkByCode(ctx, c)
+				if e != nil {
+					return true
+				}
+				return l.Code != ""
+			})
+			if err != nil {
+				return nil, fmt.Errorf("generate code: %w", err)
+			}
+			code = c
+		} else {
+			if seen[code] {
+				return nil, fmt.Errorf("code %q duplicated within batch", code)
+			}
+			existing, err := s.store.GetLinkByCode(ctx, code)
+			if err != nil {
+				return nil, err
+			}
+			if existing.Code != "" {
+				return nil, fmt.Errorf("code %q already exists", code)
+			}
 		}
-		out = append(out, l)
+		if seen[code] {
+			return nil, fmt.Errorf("code %q duplicated within batch", code)
+		}
+		seen[code] = true
+		rows = append(rows, store.Link{
+			Code:        code,
+			TargetURL:   req.TargetURL,
+			Owner:       req.Owner,
+			Description: req.Description,
+			ExpiresAt:   req.ExpiresAt,
+			MaxClicks:   req.MaxClicks,
+			CustomAlias: req.CustomCode != "",
+		})
 	}
-	return out, nil
+	created, err := s.store.InsertLinks(ctx, rows)
+	if err != nil {
+		return nil, err
+	}
+	return created, nil
 }
 
 // Resolve 解析短码并返回可跳转的链接；不存在、过期或达点击上限时返回对应错误。
