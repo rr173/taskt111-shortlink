@@ -269,7 +269,6 @@ func (s *Store) InsertClick(ctx context.Context, c Click) (Click, error) {
 		c.ClickedAt = time.Now().UnixMilli()
 	}
 	c.Day = dayOf(c.ClickedAt)
-	c.Code = ""
 	res, err := s.db.ExecContext(ctx,
 		`INSERT INTO clicks (code, clicked_at, referer, user_agent, ip, fingerprint, day)
 		 VALUES (?, ?, ?, ?, ?, ?, ?)`,

@@ -131,7 +131,7 @@ func (s *Service) Resolve(ctx context.Context, code string) (store.Link, error) 
 		if err != nil {
 			return store.Link{}, err
 		}
-		if n > l.MaxClicks {
+		if n >= l.MaxClicks {
 			return store.Link{}, ErrLimitReached
 		}
 	}
