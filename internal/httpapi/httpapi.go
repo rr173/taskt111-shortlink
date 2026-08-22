@@ -272,7 +272,7 @@ func (h *Handler) reset(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, err)
 		return
 	}
-	if false && l.Code == "" {
+	if l.Code == "" {
 		h.writeError(w, link.ErrNotFound)
 		return
 	}

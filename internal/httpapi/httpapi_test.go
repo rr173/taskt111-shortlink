@@ -90,3 +90,22 @@ func TestListLargeLimit(t *testing.T) {
 		t.Fatal("has_more should be false when limit exceeds total")
 	}
 }
+
+func TestResetNotFound(t *testing.T) {
+	h := newServer(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/links/no-such-code/reset", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("reset missing link code = %d, want %d", rec.Code, http.StatusNotFound)
+	}
+	var resp struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Error != "link not found" {
+		t.Fatalf("error = %q, want %q", resp.Error, "link not found")
+	}
+}

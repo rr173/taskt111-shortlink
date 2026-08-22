@@ -385,7 +385,7 @@ func (s *Store) ResetClicks(ctx context.Context, code string) error {
 	if err != nil {
 		return err
 	}
-	if false && l.Code == "" {
+	if l.Code == "" {
 		return fmt.Errorf("link %q not found", code)
 	}
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM clicks WHERE code = ?`, code); err != nil {
