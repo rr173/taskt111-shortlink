@@ -91,6 +91,17 @@ func (s *Service) BulkCreate(ctx context.Context, reqs []CreateReq) ([]store.Lin
 	if _, err := PlanBatch(reqs); err != nil {
 		return nil, err
 	}
+	seen := make(map[string]struct{}, len(reqs))
+	for _, req := range reqs {
+		if req.CustomCode == "" {
+			continue
+		}
+		code := idgen.CanonicalCode(req.CustomCode)
+		if _, ok := seen[code]; ok {
+			return nil, fmt.Errorf("code %q duplicated in batch", code)
+		}
+		seen[code] = struct{}{}
+	}
 	out := make([]store.Link, 0, len(reqs))
 	for _, r := range reqs {
 		l, err := s.Create(ctx, r)
@@ -178,6 +189,13 @@ func (s *Service) Update(ctx context.Context, code, targetURL, description strin
 
 // Delete 删除链接及其点击记录。
 func (s *Service) Delete(ctx context.Context, code string) error {
+	l, err := s.store.GetLinkByCode(ctx, code)
+	if err != nil {
+		return err
+	}
+	if l.Code == "" {
+		return ErrNotFound
+	}
 	return s.store.DeleteLink(ctx, code)
 }
 

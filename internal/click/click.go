@@ -3,6 +3,7 @@ package click
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"taskt111-shortlink/internal/store"
@@ -19,6 +20,22 @@ func New(s *store.Store) *Service { return &Service{store: s} }
 // Record 写入一条点击记录，返回落库后的完整记录。
 // fingerprint 用于同一浏览器在短时间内重复刷新时的去重。
 func (s *Service) Record(ctx context.Context, code, referer, ua, ip, fingerprint string) (store.Click, error) {
+	l, err := s.store.GetLinkByCode(ctx, code)
+	if err != nil {
+		return store.Click{}, err
+	}
+	if l.Code == "" {
+		return store.Click{}, fmt.Errorf("link %q not found", code)
+	}
+	if l.MaxClicks > 0 {
+		n, err := s.store.CountClicks(ctx, code)
+		if err != nil {
+			return store.Click{}, err
+		}
+		if n >= l.MaxClicks {
+			return store.Click{}, fmt.Errorf("click limit reached")
+		}
+	}
 	return s.store.InsertClick(ctx, store.Click{
 		Code:        code,
 		Referer:     referer,

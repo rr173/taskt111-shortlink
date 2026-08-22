@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -210,10 +211,11 @@ func (s *Store) CountLinks(ctx context.Context, owner string) (int, error) {
 
 // SearchLinks 按 target_url 或 description 模糊匹配。
 func (s *Store) SearchLinks(ctx context.Context, q string, limit int) ([]Link, error) {
-	like := "%" + q + "%"
+	escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(q)
+	like := "%" + escaped + "%"
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, code, target_url, owner, description, created_at, expires_at, max_clicks, custom_alias
-		 FROM links WHERE target_url LIKE ? OR description LIKE ? ORDER BY id DESC LIMIT ?`,
+		 FROM links WHERE target_url LIKE ? ESCAPE '\' OR description LIKE ? ESCAPE '\' ORDER BY id DESC LIMIT ?`,
 		like, like, limit)
 	if err != nil {
 		return nil, fmt.Errorf("search links: %w", err)
@@ -379,6 +381,13 @@ func (s *Store) RecentClicks(ctx context.Context, limit int) ([]Click, error) {
 
 // ResetClicks 清空某短码的全部点击（用于测试与重置）。
 func (s *Store) ResetClicks(ctx context.Context, code string) error {
+	l, err := s.GetLinkByCode(ctx, code)
+	if err != nil {
+		return err
+	}
+	if l.Code == "" {
+		return fmt.Errorf("link %q not found", code)
+	}
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM clicks WHERE code = ?`, code); err != nil {
 		return fmt.Errorf("reset clicks: %w", err)
 	}

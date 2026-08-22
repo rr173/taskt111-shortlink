@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"taskt111-shortlink/internal/click"
 	"taskt111-shortlink/internal/stat"
+	"taskt111-shortlink/internal/store"
 )
 
 func (h *Handler) activity(w http.ResponseWriter, r *http.Request) {
@@ -18,7 +19,13 @@ func (h *Handler) activity(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, err)
 		return
 	}
-	view.Window = click.SummarizeWindow(rows)
+	filtered := make([]store.Click, 0, len(rows))
+	for _, row := range rows {
+		if row.Code == code {
+			filtered = append(filtered, row)
+		}
+	}
+	view.Window = click.SummarizeWindow(filtered)
 	h.writeJSON(w, http.StatusOK, view)
 }
 
