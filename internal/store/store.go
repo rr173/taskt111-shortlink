@@ -168,7 +168,8 @@ func (s *Store) GetLinkByCode(ctx context.Context, code string) (Link, error) {
 	return l, nil
 }
 
-// ListLinks 分页列出链接，owner 为空表示不限。
+// ListLinks 分页列出链接，owner 为空表示不限。limit 为返回条数上限，
+// 调用方可传入 limit+1 借助多取的一条判断是否还有下一页。
 func (s *Store) ListLinks(ctx context.Context, owner string, limit, offset int) ([]Link, error) {
 	q := `SELECT id, code, target_url, owner, description, created_at, expires_at, max_clicks, custom_alias FROM links`
 	args := []any{}
@@ -177,7 +178,7 @@ func (s *Store) ListLinks(ctx context.Context, owner string, limit, offset int) 
 		args = append(args, owner)
 	}
 	q += ` ORDER BY id DESC LIMIT ? OFFSET ?`
-	args = append(args, limit-1, offset)
+	args = append(args, limit, offset)
 	rows, err := s.db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list links: %w", err)

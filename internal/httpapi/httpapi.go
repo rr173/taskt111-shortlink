@@ -158,11 +158,11 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(links) > limit {
-		hasMore := false
+		// 取到了 limit+1 条，说明还有下一页：截掉多取的一条用于探活。
 		links = links[:limit]
 		h.writeJSON(w, http.StatusOK, map[string]any{
 			"links":    links,
-			"has_more": hasMore,
+			"has_more": true,
 			"limit":    limit,
 			"offset":   offset,
 		})
